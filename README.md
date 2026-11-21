@@ -8,8 +8,8 @@ Built with FastAPI, SQLAlchemy 2, Alembic and PostgreSQL. Managed with [uv](http
 
 ```bash
 uv sync                          # install dependencies
-cp .env.example .env             # then set POSTGRES_PASSWORD
-docker compose up -d db          # start PostgreSQL
+cp .env.example .env             # then set the password in DATABASE_URL and POSTGRES_PASSWORD
+docker compose up -d db          # start PostgreSQL + pgvector on localhost:5434
 uv run alembic upgrade head      # apply migrations
 uv run fastapi dev               # http://127.0.0.1:8000/docs
 ```
@@ -31,7 +31,7 @@ uv run fastapi dev               # http://127.0.0.1:8000/docs
 alembic/            Database migrations
 app/
   main.py           FastAPI application entry point
-  core/             Config, security, exceptions
+  core/             Config, errors, logging, middleware, Sentry, security
   db/               Engine/session, declarative base, models/
   modules/          Feature modules (one package per feature)
   scripts/          Application-specific scripts
