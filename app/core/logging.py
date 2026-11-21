@@ -6,6 +6,7 @@ Every record gets the request ID (when inside a request) and has sensitive keys 
 
 import io
 import logging
+import re
 import sys
 from collections.abc import Mapping
 from typing import Any
@@ -17,7 +18,29 @@ from structlog.typing import EventDict, Processor, WrappedLogger
 REDACTED = "[REDACTED]"
 SENSITIVE_KEYS = frozenset({"password", "token", "authorization", "cookie", "api_key", "secret"})
 
+LONG_LINE = 100
+_ANSI = re.compile(r"\[[0-9;]*m")
+_HEAD_KEYS = frozenset(
+    {"event", "timestamp", "level", "logger", "logger_name", "exception", "exc_info", "stack"}
+)
+
 _handler: logging.Handler | None = None
+
+
+def multiline_console(renderer: Processor, width: int = LONG_LINE) -> Processor:
+    """Local console: lines longer than `width` put each key=value on its own indented line."""
+
+    def render(logger: WrappedLogger, method: str, event_dict: EventDict) -> Any:
+        line = renderer(logger, method, dict(event_dict))
+        if len(_ANSI.sub("", str(line))) <= width:
+            return line
+        extras = {k: event_dict.pop(k) for k in list(event_dict) if k not in _HEAD_KEYS}
+        head = renderer(logger, method, event_dict)
+        head, sep, tail = str(head).partition("\n")  # keep any traceback after the fields
+        fields = "".join(f"\n    {k}={v}" for k, v in extras.items())
+        return head + fields + sep + tail
+
+    return render
 
 
 def _redact(value: Any) -> Any:
@@ -64,8 +87,10 @@ def configure_logging(level: str, *, json_logs: bool) -> None:
         if json_logs
         # Plain tracebacks: the default (Rich) one prints every frame's local variable values.
         else [
-            structlog.dev.ConsoleRenderer(
-                colors=sys.stdout.isatty(), exception_formatter=structlog.dev.plain_traceback
+            multiline_console(
+                structlog.dev.ConsoleRenderer(
+                    colors=sys.stdout.isatty(), exception_formatter=structlog.dev.plain_traceback
+                )
             )
         ]
     )
