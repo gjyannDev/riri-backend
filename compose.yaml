@@ -1,14 +1,21 @@
+# Dev database: Postgres 18 with the pgvector extension (the reference-note tables need the `vector` type).
+# Start: docker compose up -d   Stop: docker compose down (the data stays in the volume; add -v to delete it).
+# Host port 5434, so it runs next to the other projects' databases on 5432 and 5433; localhost only.
 services:
   db:
-    image: postgres:18-alpine
+    # Pinned: pgvector 0.8.7 on Postgres 18 (verified on Docker Hub, 2026-11-09).
+    image: pgvector/pgvector:0.8.7-pg18-trixie
     restart: unless-stopped
+    # Container login, applied only when the volume is first created. Compose can't read parts of
+    # DATABASE_URL, so the user and db name default to match .env.example; set them in .env if yours differ.
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:?set in .env}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
-      POSTGRES_DB: ${POSTGRES_DB:?set in .env}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env (the password in DATABASE_URL)}
+      POSTGRES_DB: ${POSTGRES_DB:-riri}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:5434:5432"
     volumes:
+      # Postgres 18 images keep data under /var/lib/postgresql/18/docker, so mount the parent.
       - postgres-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
