@@ -6,13 +6,26 @@ from pydantic import SecretStr, ValidationError
 from app.core.config import load_settings
 
 APP_VARS = ("PROJECT_NAME", "ENVIRONMENT", "API_V1_PREFIX", "BACKEND_CORS_ORIGINS")
+LLM_VARS = tuple(
+    f"LLM_{name}"
+    for name in (
+        "PROVIDER",
+        "MODEL",
+        "API_KEY",
+        "TIMEOUT_S",
+        "MAX_TOKENS",
+        "MAX_RETRIES",
+        "TEMPERATURE",
+        "THINKING_LEVEL",
+    )
+)
 TEST_URL = "postgresql+psycopg://riri:secret@db.example:6543/riri_test"
 
 
 @pytest.fixture
 def env_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Temporary .env with real env vars cleared, so the real .env is never read."""
-    for name in (*APP_VARS, "DATABASE_URL", "LOG_LEVEL", "SENTRY_DSN", "SENTRY_ENABLED"):
+    for name in (*APP_VARS, *LLM_VARS, "DATABASE_URL", "LOG_LEVEL", "SENTRY_DSN", "SENTRY_ENABLED"):
         monkeypatch.delenv(name, raising=False)
 
     def write(**values: str) -> Path:
@@ -104,3 +117,53 @@ def test_sentry_can_be_switched_off_without_removing_the_dsn(env_file) -> None:
 
     assert settings.sentry.dsn is not None
     assert settings.sentry.active is False
+
+
+def test_llm_settings_are_read_from_the_env_file(env_file) -> None:
+    path = env_file(
+        LLM_PROVIDER="google_genai",
+        LLM_MODEL="gemini-flash-test",
+        LLM_API_KEY="test-key",
+        LLM_TIMEOUT_S="12.5",
+        LLM_MAX_TOKENS="300",
+        LLM_MAX_RETRIES="1",
+        LLM_TEMPERATURE="0.4",
+        LLM_THINKING_LEVEL="low",
+    )
+
+    llm = load_settings(path).llm
+
+    assert llm.provider == "google_genai"
+    assert llm.model == "gemini-flash-test"
+    assert llm.api_key is not None and llm.api_key.get_secret_value() == "test-key"
+    assert llm.timeout_s == 12.5
+    assert llm.max_tokens == 300
+    assert llm.max_retries == 1
+    assert llm.temperature == 0.4
+    assert llm.thinking_level == "low"
+
+
+def test_llm_settings_load_without_model_or_key(env_file) -> None:
+    llm = load_settings(env_file()).llm
+
+    assert llm.model is None
+    assert llm.api_key is None
+    assert llm.provider == "google_genai"
+
+
+def test_llm_api_key_stays_out_of_reprs(env_file) -> None:
+    settings = load_settings(env_file(LLM_API_KEY="leak-canary-key"))
+
+    assert isinstance(settings.llm.api_key, SecretStr)
+    assert "leak-canary-key" not in repr(settings)
+    assert "leak-canary-key" not in str(settings.llm)
+
+
+def test_thinking_level_defaults_to_minimal(env_file) -> None:
+    assert load_settings(env_file()).llm.thinking_level == "minimal"
+    assert load_settings(env_file(LLM_THINKING_LEVEL="")).llm.thinking_level == "minimal"
+
+
+def test_unknown_thinking_level_is_rejected_at_load(env_file) -> None:
+    with pytest.raises(ValidationError):
+        load_settings(env_file(LLM_THINKING_LEVEL="max"))
