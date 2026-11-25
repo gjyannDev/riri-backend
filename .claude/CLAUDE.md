@@ -19,6 +19,7 @@ The project is also a learning path: `docs/ai-engineering-learning-path-v2.md` d
 | Regenerate error docs | `uv run python -m app.scripts.gen_error_docs` |
 | Talk to the coach (terminal) | `uv run python -m app.entrypoints.cli` (logs go to `logs/cli.log`) |
 | Check the prompt registry | `uv run python -m app.scripts.prompts check` |
+| Run the seed evals (real model, by hand) | `uv run python -m app.scripts.run_seed [--pause-seconds 5]` (results in `docs/features/slice-1c-seed-evals/results/`, every run in `logs/seed-*.jsonl`) |
 | Add / use a prompt version | `uv run python -m app.scripts.prompts add <block> <file> --note "why"`, then `... activate <set> <block> <version>` |
 
 ## Rules

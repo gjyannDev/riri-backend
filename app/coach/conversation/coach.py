@@ -62,6 +62,22 @@ class Coach:
     def history(self) -> tuple[BaseMessage, ...]:
         return tuple(self._history)
 
+    @property
+    def session_id(self) -> str:
+        return self._session_id
+
+    @property
+    def model_name(self) -> str:
+        return self._info.name
+
+    @property
+    def prompt_version(self) -> str:
+        return self._prompt.version
+
+    @property
+    def prompt_hash(self) -> str:
+        return self._prompt.hash
+
     def stats(self) -> tuple[TurnStats, ...]:
         return tuple(self._stats)
 

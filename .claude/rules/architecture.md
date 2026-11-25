@@ -22,6 +22,7 @@ app/
       <feature>_dependencies.py  Factory functions for DI (see below).
   coach/           The AI engine. No HTTP. See .claude/rules/ai-core.md.
   entrypoints/     Non-HTTP doors into the engine: cli.py (slice 1), voice_worker.py (slice 7).
+  evals/           Offline evaluation of the engine (slice 1c on): seed rules, runner, report. Run by app/scripts/run_seed.py.
   scripts/         One-off/admin scripts: uv run python -m app.scripts.<name>
 ```
 
@@ -47,6 +48,7 @@ router → controller → service → repository → db
 - `app/coach` never imports `fastapi` or `app/modules`. It may import `app/core` and `app/shared`.
 - A module never imports another module's repository or models. It calls that module's service.
 - Entry points and routers reach the engine only through `app.coach` factories and public interfaces.
+- `app/evals` may import `app/coach` (public interfaces only), `app/core` and `app/shared`. Nothing imports `app/evals` except `app/scripts` and tests. Eval runs that call the real model are scripts run by hand, never tests.
 
 ## Dependency injection
 

@@ -363,3 +363,24 @@ def test_a_coach_without_tracing_sends_no_config() -> None:
 
     assert _say(coach, "hello") == "Okay."
     assert len(model.received) == 1
+
+
+def test_run_info_is_what_the_coach_was_built_with() -> None:
+    coach, _ = _coach()
+
+    assert coach.model_name == "gemini-test"
+    assert coach.prompt_version == PROMPT.version
+    assert coach.prompt_hash == PROMPT.hash
+
+
+def test_session_id_property_is_the_traced_session_and_changes_on_reset() -> None:
+    coach, tracing = _traced("One.", "Two.")
+
+    first = coach.session_id
+    _say(coach, "a")
+    coach.reset()
+    second = coach.session_id
+    _say(coach, "b")
+
+    assert [start["session_id"] for start in tracing.starts] == [first, second]
+    assert first != second
