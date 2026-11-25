@@ -9,7 +9,7 @@ import logging
 import re
 import sys
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, TextIO
 
 import structlog
 from asgi_correlation_id import correlation_id
@@ -64,8 +64,10 @@ def add_request_id(_logger: WrappedLogger, _method: str, event_dict: EventDict) 
     return event_dict
 
 
-def configure_logging(level: str, *, json_logs: bool) -> None:
+def configure_logging(level: str, *, json_logs: bool, stream: TextIO | None = None) -> None:
+    """Route structlog and stdlib logging to one handler on `stream` (stdout by default)."""
     global _handler
+    target: TextIO = stream or sys.stdout
 
     shared: list[Processor] = [
         structlog.contextvars.merge_contextvars,
@@ -89,17 +91,16 @@ def configure_logging(level: str, *, json_logs: bool) -> None:
         else [
             multiline_console(
                 structlog.dev.ConsoleRenderer(
-                    colors=sys.stdout.isatty(), exception_formatter=structlog.dev.plain_traceback
+                    colors=target.isatty(), exception_formatter=structlog.dev.plain_traceback
                 )
             )
         ]
     )
-    stream = sys.stdout
     # Redirected stdout on Windows uses a legacy code page (cp1252). Escape characters it can't
     # encode (traceback box drawing, emoji) instead of losing the whole record.
-    if isinstance(stream, io.TextIOWrapper):
-        stream.reconfigure(errors="backslashreplace")
-    handler = logging.StreamHandler(stream)
+    if isinstance(target, io.TextIOWrapper):
+        target.reconfigure(errors="backslashreplace")
+    handler = logging.StreamHandler(target)
     handler.setFormatter(
         structlog.stdlib.ProcessorFormatter(
             foreign_pre_chain=shared,

@@ -38,6 +38,16 @@ def test_console_output_locally(capsys: pytest.CaptureFixture[str]) -> None:
         json.loads(out)
 
 
+def test_logs_can_go_to_another_stream(capsys: pytest.CaptureFixture[str]) -> None:
+    stream = io.StringIO()
+    configure_logging("INFO", json_logs=True, stream=stream)
+
+    structlog.get_logger("app.test").info("session_created")
+
+    assert json_lines(stream.getvalue())[0]["event"] == "session_created"
+    assert capsys.readouterr().out == ""
+
+
 def test_configured_level_is_respected(capsys: pytest.CaptureFixture[str]) -> None:
     configure_logging("WARNING", json_logs=True)
     log = structlog.get_logger("app.test")
