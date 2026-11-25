@@ -12,6 +12,7 @@ from app.coach.conversation.coach import GREETING, Coach
 from app.coach.llm.model_factory import ModelInfo
 from app.coach.prompts.prompt_registry import DEFAULT_REGISTRY_PATH, compile_active_set
 from app.core.errors import ExternalBadResponseError, ExternalRateLimitedError, ExternalServiceError
+from tests.fakes.fake_tracing import FakeTracing
 from tests.fakes.spy_chat_model import REFUSED, STOP, TRUNCATED, Reply, SpyChatModel
 
 PROMPT = compile_active_set(DEFAULT_REGISTRY_PATH)
@@ -268,3 +269,97 @@ def test_no_log_record_contains_conversation_or_prompt_text(
         assert "canary" not in line
         assert prompt_snippet not in line
         assert GREETING not in line
+
+
+def _traced(*steps: Reply | str | BaseException) -> tuple[Coach, FakeTracing]:
+    tracing = FakeTracing()
+    coach = Coach(
+        SpyChatModel.scripted(*steps), PROMPT, INFO, clock=FakeClock(0.0), tracing=tracing
+    )
+    return coach, tracing
+
+
+def test_each_call_starts_a_trace_with_version_hash_model_and_turn_only() -> None:
+    coach, tracing = _traced("One.", "Two.")
+
+    _say(coach, "private words")
+    _say(coach, "more private words")
+
+    assert [start["metadata"] for start in tracing.starts] == [
+        {
+            "prompt_version": PROMPT.version,
+            "prompt_hash": PROMPT.hash,
+            "model": "gemini-test",
+            "thinking_level": "minimal",
+            "temperature": 0.7,
+            "turn": turn,
+        }
+        for turn in (1, 2)
+    ]
+    assert "private" not in repr(tracing.starts)
+
+
+def test_the_calls_config_reaches_the_chain() -> None:
+    coach, tracing = _traced("One.")
+
+    _say(coach, "hello")
+
+    (seen,) = tracing.chain_metadata
+    assert seen["langfuse_session_id"] == tracing.starts[0]["session_id"]
+    assert seen["prompt_hash"] == PROMPT.hash
+
+
+def test_session_id_is_stable_within_a_conversation_and_new_after_reset() -> None:
+    coach, tracing = _traced("One.", "Two.", "Three.")
+
+    _say(coach, "a")
+    _say(coach, "b")
+    coach.reset()
+    _say(coach, "c")
+
+    first, second, third = (start["session_id"] for start in tracing.starts)
+    assert first == second != third
+    assert all(len(session) == 32 and session.isalnum() for session in (first, third))
+
+
+@pytest.mark.parametrize(
+    ("step", "outcome"),
+    [
+        ("Okay.", "ok"),
+        (ModelRateLimitError("x"), "failed"),
+        (Reply("", metadata=STOP), "blocked"),
+    ],
+)
+def test_every_call_records_how_it_ended(step: Reply | str | BaseException, outcome: str) -> None:
+    coach, tracing = _traced(step)
+
+    with contextlib.suppress(ExternalServiceError):
+        _say(coach, "hello")
+
+    assert tracing.outcomes == [outcome]
+
+
+def test_a_cancelled_call_records_cancelled() -> None:
+    coach, tracing = _traced("A reply that is cut short.")
+    stream = coach.respond("hello")
+
+    next(stream)
+    stream.close()
+
+    assert tracing.outcomes == ["cancelled"]
+
+
+def test_close_closes_the_tracing_and_is_harmless_without_one() -> None:
+    coach, tracing = _traced()
+    coach.close()
+    plain, _ = _coach()
+    plain.close()
+
+    assert tracing.closed == 1
+
+
+def test_a_coach_without_tracing_sends_no_config() -> None:
+    coach, model = _coach("Okay.")
+
+    assert _say(coach, "hello") == "Okay."
+    assert len(model.received) == 1
