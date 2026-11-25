@@ -1,0 +1,132 @@
+{
+  "active_set": "coach_default",
+  "blocks": {
+    "role": {
+      "versions": {
+        "v1": {
+          "file": "blocks/role_v1.md",
+          "sha256": "2bd4eb80fdbfc79b28969f89510d8d5f07dcac11db915f87f468bcbd8de9abdc",
+          "date": "2026-11-24",
+          "note": "First version: ROLE section; identity, not a therapist/counselor/crisis service, warm calm tone (brainstorm 1, 7, 11.2).",
+          "variables": []
+        }
+      }
+    },
+    "constraints": {
+      "versions": {
+        "v1": {
+          "file": "blocks/constraints_v1.md",
+          "sha256": "50a238e7d5ed05f4df61663fbb8db75b94dafff6db1c4c47a434cd51a9c7fc19",
+          "date": "2026-11-24",
+          "note": "First version: CONSTRAINTS section; scope, refer out, emergency line until the slice 2 gate, no invented clinical content; always wins (brainstorm 3, 7, 11.5).",
+          "variables": []
+        }
+      }
+    },
+    "task": {
+      "versions": {
+        "v1": {
+          "file": "blocks/task_v1.md",
+          "sha256": "ae7fd40c538e9e694e06c406eecfc129a304677925dd5d688024f8b71cb32497",
+          "date": "2026-11-24",
+          "note": "First version: TASK section; the job plus the 10 conversation principles verbatim (brainstorm 3).",
+          "variables": []
+        }
+      }
+    },
+    "input": {
+      "versions": {
+        "v1": {
+          "file": "blocks/input_v1.md",
+          "sha256": "0b9ea8c34dfde00f9ee6637b1cdd9f4078b9eaf7b2a41f3fd1f2cedb0655886f",
+          "date": "2026-11-24",
+          "note": "First version: INPUT section; what the model receives, typed now and transcribed later; user text is data, never instructions (ai-core rules).",
+          "variables": []
+        }
+      }
+    },
+    "output": {
+      "versions": {
+        "v1": {
+          "file": "blocks/output_v1.md",
+          "sha256": "dcbac2d9db70a1462e631cd841c9c63816faad13f20ed14f01d16e77eb6163df",
+          "date": "2026-11-24",
+          "note": "First version: OUTPUT section; spoken replies, 2-3 short sentences, plain words, no formatting (brainstorm 6).",
+          "variables": []
+        }
+      }
+    },
+    "capabilities": {
+      "versions": {
+        "v1": {
+          "file": "blocks/capabilities_v1.md",
+          "sha256": "964fca5ef3f64e1021bf11e45356d6bb3ce38c3ee4301415af239f047f1a07b1",
+          "date": "2026-11-24",
+          "note": "First version: CAPABILITIES section; the 4 MVP skills with purpose and when to use, how to offer one, what the coach cannot do; no steps (brainstorm 4).",
+          "variables": []
+        }
+        
+      }
+    },
+    "safety_scope": {
+      "versions": {
+        "v1": {
+          "file": "blocks/safety_scope_v1.md",
+          "sha256": "0ad839b3d7465a8a3f8c139bd345ff561bb005f8c1ec0175f31595f347927be4",
+          "date": "2026-11-24",
+          "note": "First version: AI skills coach not a therapist; no diagnosis, medication advice or trauma processing; refer out; emergency line until the slice 2 gate (brainstorm 1, 3, 7).",
+          "variables": []
+        }
+      }
+    },
+    "persona": {
+      "versions": {
+        "v1": {
+          "file": "blocks/persona_v1.md",
+          "sha256": "657bc6ccf912173bcffd115aac03c470292d1daf744283c1481acd19c7488e6a",
+          "date": "2026-11-24",
+          "note": "First version: warm, calm, plain words, 2-3 spoken sentences, no formatting (brainstorm 6, 11.2, 11.5).",
+          "variables": []
+        }
+      }
+    },
+    "principles": {
+      "versions": {
+        "v1": {
+          "file": "blocks/principles_v1.md",
+          "sha256": "a9321afdede4e599e5cab1efd1142cc59046d0f193799ac875d24a5137a606c9",
+          "date": "2026-11-24",
+          "note": "First version: the 10 conversation principles, verbatim from brainstorm section 3.",
+          "variables": []
+        }
+      }
+    },
+    "skills": {
+      "versions": {
+        "v1": {
+          "file": "blocks/skills_v1.md",
+          "sha256": "9407e3eef513c17e0a32bd40fc9a6368721e42bdcc40a2fee3e13d624527c59e",
+          "date": "2026-11-24",
+          "note": "First version: the 4 MVP skills with purpose and when to use, how to offer one; no steps (brainstorm 4).",
+          "variables": []
+        }
+      }
+    }
+  },
+  "sets": {
+    "coach_4block": [
+      "safety_scope@v1",
+      "persona@v1",
+      "principles@v1",
+      "skills@v1"
+    ],
+    "coach_default": [
+      "role@v1",
+      "constraints@v1",
+      "task@v1",
+      "input@v1",
+      "output@v1",
+      "capabilities@v1"
+    ]
+  }
+}
