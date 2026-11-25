@@ -22,8 +22,13 @@ uv run fastapi dev               # http://127.0.0.1:8000/docs
 | Run production server | `uv run fastapi run` |
 | Tests | `uv run pytest` |
 | Lint / format | `uv run ruff check . && uv run ruff format .` |
+| Type check | `uv run pyright` |
 | New migration | `uv run alembic revision --autogenerate -m "message"` |
 | Apply migrations | `uv run alembic upgrade head` |
+| Talk to the coach (terminal) | `uv run python -m app.entrypoints.cli` (logs go to `logs/cli.log`) |
+| Check the prompt registry | `uv run python -m app.scripts.prompts check` |
+| Add a prompt version | `uv run python -m app.scripts.prompts add <block> <file> --note "why"` |
+| Use a prompt version | `uv run python -m app.scripts.prompts activate <set> <block> <version>` |
 
 ## Project structure
 
@@ -32,8 +37,11 @@ alembic/            Database migrations
 app/
   main.py           FastAPI application entry point
   core/             Config, errors, logging, middleware, Sentry, security
-  db/               Engine/session, declarative base, models/
-  modules/          Feature modules (one package per feature)
+  db/               Engine/session, declarative base, models/ (re-exports module models)
+  shared/           Helpers used by two or more modules
+  modules/          HTTP feature modules: router → controller → service → repository
+  coach/            The AI engine (no HTTP): model factory, prompt registry, conversation
+  entrypoints/      Non-HTTP doors into the engine (CLI, later the voice worker)
   scripts/          Application-specific scripts
 docs/               Technical documentation
 tests/              Automated tests

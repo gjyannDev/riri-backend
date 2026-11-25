@@ -10,7 +10,7 @@ The v1 mindset still holds: you are building a reliable product around a compone
 
 > **In a voice app, latency is the product.** Every stage you add is time the user spends in silence.
 >
-> **In a mental health app, safety is code, not a prompt.** The model never decides whether a crisis gets handled.
+> **In a mental health   app, safety is code, not a prompt.** The model never decides whether a crisis gets handled.
 
 ## 1. Analysis of the brainstorm
 
@@ -96,7 +96,7 @@ The v1 mindset still holds: you are building a reliable product around a compone
  room tokens, delete; 11-12) ─────────▶ (profiles, consent, moods, summaries, checkpoints, skill vectors)
 ```
 
-The core has no web or audio code, so every slice can be tested in text with a fake model. The gate lives in the core, so no door can skip it. The FastAPI app follows the Cuewise conventions (route → controller → service → repository).
+The core has no web or audio code, so every slice can be tested in text with a fake model. The gate lives in the core, so no door can skip it. In the repo, the core is `app/coach/` and the non-HTTP doors are in `app/entrypoints/`. The FastAPI app follows feature modules with `router → controller → service → repository` (see `.claude/rules/architecture.md`).
 
 ## 2. The fundamentals
 
@@ -220,7 +220,7 @@ v1 had one model to choose. v2 has five: the conversational LLM, the gate classi
 
 | Slice | What gets built | Concepts |
 | --- | --- | --- |
-| 1. Text coach on LangChain | CLI chat, layered prompt files, 4 hard-coded skills, tracing, fake model, 10 seed evals | 14, 15, 1, 3, 9 |
+| 1. Text coach on LangChain (built as 1a, 1b, 1c) | CLI chat, layered prompt files, 4 hard-coded skills, tracing, fake model, 10 seed evals | 14, 15, 1, 3, 9 |
 | 2. Safety gate | Rules + LLM classifier before the agent, fixed replies, hotlines config, labeled safety set, the invariant test | 16, 4, 5, 10 |
 | 3. Skills library + RAG | 25-40 entries, pgvector, small-to-big, filters, hybrid, rewrite, rerank, retrieval evals | 17, 12, 2, 8 |
 | 4. Tool calling | Read and write tools, `create_agent` with limits, mood table, tool-choice evals | 18, 13, 5, 8 |
@@ -290,7 +290,7 @@ Coach: Waiting without knowing sounds really stressful. What makes you think it 
 ```
 
 **What you build:**
-- **Project skeleton:** Python with `uv`, the "one core, three doors" layout (`coach/` core, `cli.py` first).
+- **Project skeleton:** Python with `uv`, the "one core, three doors" layout: the engine in `app/coach/`, the CLI in `app/entrypoints/cli.py` (see `.claude/rules/architecture.md` and `.claude/rules/ai-core.md`).
 - **The chat model from config:** provider, model, timeout, max tokens and retries from env (`init_chat_model` makes the provider a setting).
 - **Prompt files, versioned and layered:**
   - `safety_scope_v1.md`: fixed. AI skills coach, not a therapist; no diagnosis, no medication advice, no trauma processing.
@@ -313,6 +313,32 @@ Coach: Waiting without knowing sounds really stressful. What makes you think it 
 - every call is traced with tokens, latency and prompt version, and no message text
 - tests pass on the fake model
 - you have a pass count per rule on the 10 seed messages
+
+**Build it as three sub-slices, in order: 1a → 1b → 1c.** Slice 1 is three jobs (talk, trace, measure). Splitting them gives each its own spec, plan and PR. Each sub-slice runs end to end, ends with a number, and stays inside slice 1's scope (no gate, RAG, tools or state). There is one `learnings.md` for the whole slice, written at the end of 1c, because concept 14 needs the whole picture.
+
+| Sub-slice | What gets built | Ends with the number |
+| --- | --- | --- |
+| **1a. Talking core** | `llm` settings group, `init_chat_model` with streaming, the prompt registry and the four prompt blocks (version + locked content hash), `Coach.respond()` with in-memory history, `app/entrypoints/cli.py` (fixed greeting, `/reset`, `/stats`, `/quit`), a local `llm_call` log event, fake-model plumbing tests | Time to first token, and input tokens at turn 1 vs turn 20 |
+| **1b. Tracing** | `langfuse` settings group (keys as `SecretStr`), the callback handler with prompt version, hash and session id, masking of message content, a test that a traced call carries no message text, the concept 14 exercise | LLM calls per turn, and where the time goes |
+| **1c. Seed evals** | `evals/seed_v1.jsonl` (10 synthetic messages), the 3 rule checks with unit tests, `run_seed.py` (3 runs per message, a pass table with model, date and prompt hash), failures written down, `learnings.md` | Pass count per rule over 30 runs |
+
+**1a done when:**
+- a 5-minute conversation runs in the terminal
+- fake-model tests pass
+- every call logs tokens, latency and prompt version locally, with no message text
+- you can state time to first token, and input tokens at turn 1 vs turn 20
+
+**1b done when:**
+- a masked trace, checked by eye, shows no message text
+- the no-text test passes
+- you can list every LLM call in one turn and the v1 code each piece replaced
+
+**1c done when:**
+- you have a pass count per rule over 30 runs, with model, date and prompt hash
+- the failures are written down in words
+- `docs/features/slice-1/learnings.md` is written
+
+Order notes: 1a goes first. 1b and 1c are independent, so swap them if you want the baseline sooner. Keep local timing in 1a so measurement starts at the first working turn. Specs live in `docs/features/slice-1a-talking-core/`, `slice-1b-tracing/` and `slice-1c-seed-evals/`.
 
 ### Slice 2: Safety gate
 
@@ -677,6 +703,9 @@ Rules: keep real numbers (with model, date and command), keep file:line referenc
 ## 8. Progress
 
 - [ ] Slice 1: Text coach on LangChain
+  - [ ] 1a: Talking core
+  - [ ] 1b: Tracing
+  - [ ] 1c: Seed evals
 - [ ] Slice 2: Safety gate
 - [ ] Slice 3: Skills library + RAG
 - [ ] Slice 4: Tool calling
