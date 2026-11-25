@@ -19,13 +19,18 @@ LLM_VARS = tuple(
         "THINKING_LEVEL",
     )
 )
+LANGFUSE_VARS = tuple(
+    f"LANGFUSE_{name}"
+    for name in ("ENABLED", "PUBLIC_KEY", "SECRET_KEY", "BASE_URL", "CAPTURE_TEXT")
+)
 TEST_URL = "postgresql+psycopg://riri:secret@db.example:6543/riri_test"
 
 
 @pytest.fixture
 def env_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Temporary .env with real env vars cleared, so the real .env is never read."""
-    for name in (*APP_VARS, *LLM_VARS, "DATABASE_URL", "LOG_LEVEL", "SENTRY_DSN", "SENTRY_ENABLED"):
+    cleared = (*APP_VARS, *LLM_VARS, *LANGFUSE_VARS)
+    for name in (*cleared, "DATABASE_URL", "LOG_LEVEL", "SENTRY_DSN", "SENTRY_ENABLED"):
         monkeypatch.delenv(name, raising=False)
 
     def write(**values: str) -> Path:
@@ -167,3 +172,72 @@ def test_thinking_level_defaults_to_minimal(env_file) -> None:
 def test_unknown_thinking_level_is_rejected_at_load(env_file) -> None:
     with pytest.raises(ValidationError):
         load_settings(env_file(LLM_THINKING_LEVEL="max"))
+
+
+def test_langfuse_is_off_by_default_even_with_keys(env_file) -> None:
+    path = env_file(LANGFUSE_PUBLIC_KEY="pk-lf-test", LANGFUSE_SECRET_KEY="sk-lf-test")
+
+    langfuse = load_settings(path).langfuse
+
+    assert langfuse.enabled is False
+    assert langfuse.public_key is not None and langfuse.secret_key is not None
+
+
+def test_langfuse_settings_are_read_from_the_env_file(env_file) -> None:
+    path = env_file(
+        LANGFUSE_ENABLED="true",
+        LANGFUSE_PUBLIC_KEY="pk-lf-test",
+        LANGFUSE_SECRET_KEY="sk-lf-test",
+        LANGFUSE_BASE_URL="https://us.cloud.langfuse.com",
+    )
+
+    langfuse = load_settings(path).langfuse
+
+    assert langfuse.enabled is True
+    assert langfuse.public_key and langfuse.public_key.get_secret_value() == "pk-lf-test"
+    assert langfuse.secret_key and langfuse.secret_key.get_secret_value() == "sk-lf-test"
+    assert langfuse.base_url == "https://us.cloud.langfuse.com"
+
+
+@pytest.mark.parametrize("values", [{}, {"LANGFUSE_BASE_URL": ""}])
+def test_langfuse_base_url_defaults_to_the_eu_cloud(env_file, values: dict[str, str]) -> None:
+    assert load_settings(env_file(**values)).langfuse.base_url == "https://cloud.langfuse.com"
+
+
+def test_langfuse_text_capture_is_unset_by_default_and_can_be_forced_either_way(env_file) -> None:
+    assert load_settings(env_file()).langfuse.capture_text is None
+    assert load_settings(env_file(LANGFUSE_CAPTURE_TEXT="true")).langfuse.capture_text is True
+    assert load_settings(env_file(LANGFUSE_CAPTURE_TEXT="false")).langfuse.capture_text is False
+
+
+def test_langfuse_keys_stay_out_of_reprs(env_file) -> None:
+    path = env_file(LANGFUSE_PUBLIC_KEY="pk-leak-canary", LANGFUSE_SECRET_KEY="sk-leak-canary")
+
+    settings = load_settings(path)
+
+    for secret in ("pk-leak-canary", "sk-leak-canary"):
+        assert secret not in repr(settings)
+        assert secret not in str(settings.langfuse)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://cloud.langfuse.com",
+        "https://us.cloud.langfuse.com",
+        "http://localhost:3000",
+        "http://127.0.0.1:9",
+        "http://[::1]:3000",
+    ],
+)
+def test_langfuse_base_url_accepts_https_and_local_http(env_file, url: str) -> None:
+    assert load_settings(env_file(LANGFUSE_BASE_URL=url)).langfuse.base_url == url
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["http://cloud.langfuse.com", "http://example.com:3000", "cloud.langfuse.com", "ftp://x"],
+)
+def test_langfuse_base_url_rejects_unencrypted_remote_urls(env_file, url: str) -> None:
+    with pytest.raises(ValidationError, match="base_url"):
+        load_settings(env_file(LANGFUSE_BASE_URL=url))

@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings
 
 from app.core.config.base import ENV_FILE, env_config
 from app.core.config.database import DatabaseSettings
+from app.core.config.langfuse import LangfuseSettings
 from app.core.config.llm import LLMSettings
 from app.core.config.log import LogSettings
 from app.core.config.sentry import SentrySettings
@@ -27,6 +28,7 @@ class Settings(BaseSettings):
     log: LogSettings = Field(default_factory=LogSettings)
     sentry: SentrySettings = Field(default_factory=SentrySettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
+    langfuse: LangfuseSettings = Field(default_factory=LangfuseSettings)
 
 
 def _from_env_file[T: BaseSettings](cls: type[T], env_file: Path | None, **values: Any) -> T:
@@ -44,6 +46,7 @@ def load_settings(env_file: Path | None = ENV_FILE) -> Settings:
         log=_from_env_file(LogSettings, env_file),
         sentry=_from_env_file(SentrySettings, env_file),
         llm=_from_env_file(LLMSettings, env_file),
+        langfuse=_from_env_file(LangfuseSettings, env_file),
     )
 
 

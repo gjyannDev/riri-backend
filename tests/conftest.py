@@ -4,6 +4,8 @@ from collections.abc import Callable, Generator
 # Tests never report to the real Sentry project, even though .env holds a DSN.
 # Real environment variables take precedence over .env, so this wins before settings load.
 os.environ["SENTRY_ENABLED"] = "false"
+# Same for tracing: .env holds real Langfuse keys, and tests must never send a trace.
+os.environ["LANGFUSE_ENABLED"] = "false"
 # Tests use SQLite and never connect with this URL; it only lets settings load without a real .env.
 os.environ["DATABASE_URL"] = "postgresql+psycopg://test:test@127.0.0.1:5433/test"
 
