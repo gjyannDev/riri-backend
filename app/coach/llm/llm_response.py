@@ -1,4 +1,3 @@
-
 """Reads vendor-specific reply metadata and errors (Gemini today), shaped by the step 5 spike.
 
 Everything returned here is numbers and short codes, never message text.

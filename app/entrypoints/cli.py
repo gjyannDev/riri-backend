@@ -5,7 +5,6 @@ Ctrl-C or EOF at the prompt exits.
 """
 
 import logging
-import os
 import sys
 from collections.abc import Callable
 from contextlib import closing
@@ -15,7 +14,7 @@ from pydantic import ValidationError
 
 # Importing the app loads and validates settings, so a bad .env value fails right here.
 try:
-    from app.coach.coach_factory import CoachConfigError, build_coach
+    from app.coach.coach_factory import CoachConfigError, build_coach, text_capture_enabled
     from app.coach.conversation.coach import FALLBACK_LINE, GREETING, Coach
     from app.coach.conversation.turn_stats import TurnStats
     from app.coach.prompts.prompt_registry import PromptRegistryError
@@ -38,6 +37,9 @@ LOG_FILE = BASE_DIR / "logs" / "cli.log"
 _NOISY_LOGGERS = ("httpx", "httpx2", "google_genai")
 
 UNKNOWN_COMMAND = "Unknown command. Try /reset, /stats or /quit."
+TEXT_TRACING_NOTICE = (
+    "(tracing: message text IS being sent to Langfuse. Use synthetic conversations only.)"
+)
 NO_TURNS = "No turns yet."
 COACH_PREFIX = "Riri: "
 PROMPT = "you> "
@@ -124,9 +126,6 @@ def configure_cli_logging(path: Path) -> None:
 
 
 def main() -> int:
-    # LangChain would send conversation text to LangSmith if tracing were on. It never is.
-    os.environ["LANGSMITH_TRACING"] = "false"
-    os.environ["LANGCHAIN_TRACING_V2"] = "false"
     configure_cli_logging(LOG_FILE)
     try:
         coach = build_coach(settings)
@@ -135,8 +134,17 @@ def main() -> int:
         return 1
 
     print(f"(logs: {LOG_FILE})")
+    if settings.langfuse.enabled and text_capture_enabled(settings):
+        print(TEXT_TRACING_NOTICE)
     session = CliSession(coach, _write)
     session.greet()
+    try:
+        return _chat_loop(session)
+    finally:
+        coach.close()
+
+
+def _chat_loop(session: CliSession) -> int:
     while True:
         try:
             line = input(PROMPT)

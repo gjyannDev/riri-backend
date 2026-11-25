@@ -15,9 +15,11 @@ from app.coach.conversation.coach import FALLBACK_LINE, GREETING, Coach
 from app.coach.llm.model_factory import ModelInfo
 from app.coach.prompts.prompt_registry import DEFAULT_REGISTRY_PATH, compile_active_set
 from app.core.config.base import BASE_DIR
+from app.core.config.langfuse import LangfuseSettings
 from app.core.logging import configure_logging
 from app.entrypoints import cli
 from app.entrypoints.cli import NO_TURNS, UNKNOWN_COMMAND, CliSession
+from tests.fakes.fake_tracing import FakeTracing
 from tests.fakes.spy_chat_model import Reply, SpyChatModel
 
 PROMPT = compile_active_set(DEFAULT_REGISTRY_PATH)
@@ -169,12 +171,78 @@ def test_main_exits_before_the_greeting_when_settings_are_missing(
 
 
 @pytest.mark.usefixtures("failing_main")
-def test_main_turns_langsmith_tracing_off(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_main_leaves_the_langsmith_guard_to_build_coach(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LANGSMITH_TRACING", "true")
 
     cli.main()
 
-    assert os.environ["LANGSMITH_TRACING"] == "false"
+    assert os.environ["LANGSMITH_TRACING"] == "true"
+
+
+def _run_main(monkeypatch: pytest.MonkeyPatch, *inputs: str | type[BaseException]) -> FakeTracing:
+    """Run `main()` with a coach that has fake tracing and scripted keyboard input."""
+    tracing = FakeTracing()
+    coach = Coach(SpyChatModel.scripted("Okay."), PROMPT, INFO, clock=lambda: 0.0, tracing=tracing)
+    lines = list(inputs)
+
+    def fake_input(prompt: str) -> str:
+        item = lines.pop(0)
+        if isinstance(item, str):
+            return item
+        raise item
+
+    monkeypatch.setattr(cli, "build_coach", lambda settings: coach)
+    monkeypatch.setattr(cli, "configure_cli_logging", lambda path: None)
+    monkeypatch.setattr("builtins.input", fake_input)
+    cli.main()
+    return tracing
+
+
+@pytest.mark.parametrize(
+    "inputs",
+    [
+        ["/quit"],
+        ["hello", "/quit"],
+        [EOFError],
+        [KeyboardInterrupt],
+    ],
+    ids=["quit", "turn-then-quit", "eof", "ctrl-c-at-prompt"],
+)
+def test_main_closes_the_tracing_on_every_way_out(
+    monkeypatch: pytest.MonkeyPatch, inputs: list[str | type[BaseException]]
+) -> None:
+    tracing = _run_main(monkeypatch, *inputs)
+
+    assert tracing.closed == 1
+
+
+@pytest.mark.parametrize(
+    ("enabled", "capture_text", "environment", "shown"),
+    [
+        (True, None, "local", True),
+        (True, None, "staging", True),
+        (True, None, "production", False),
+        (True, False, "local", False),
+        (True, True, "local", True),
+        (False, None, "local", False),
+        (False, True, "local", False),
+    ],
+)
+def test_the_text_tracing_notice_shows_only_when_tracing_is_on_and_text_is_captured(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    enabled: bool,
+    capture_text: bool | None,
+    environment: str,
+    shown: bool,
+) -> None:
+    langfuse = LangfuseSettings.model_construct(enabled=enabled, capture_text=capture_text)
+    changed = cli.settings.model_copy(update={"langfuse": langfuse, "ENVIRONMENT": environment})
+    monkeypatch.setattr(cli, "settings", changed)
+
+    _run_main(monkeypatch, "/quit")
+
+    assert (cli.TEXT_TRACING_NOTICE in capsys.readouterr().out) is shown
 
 
 def test_an_invalid_setting_prints_one_clear_line_instead_of_a_traceback() -> None:

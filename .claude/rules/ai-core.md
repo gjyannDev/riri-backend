@@ -35,7 +35,7 @@ Entry points live in `app/entrypoints/` and call `build_coach()`.
 ## Privacy
 
 - Never log, trace or store user text, coach text or prompt text. Log event names with numeric and categorical fields only (`llm_call`: tokens, latency, ttft, version, flags).
-- Tracing (slice 1b on) masks message content before it leaves the machine.
+- Tracing (slice 1b on) masks message content before it leaves the machine, except one documented exception: in `local` and `staging` input and output text is sent to Langfuse so the developer can read traces (spec `docs/features/slice-1b-tracing/spec.md` FR14, decided by the developer on 2026-11-25). Staging and local must hold synthetic conversations only. `production` always masks, `LANGFUSE_CAPTURE_TEXT=false` masks anywhere, and error text, the status message and unknown attributes stay masked even when text is captured. `build_coach` logs `tracing_text_capture_active` whenever it is on.
 - Test data is synthetic. Never use real people's messages or audio.
 
 ## Safety (from slice 2)
